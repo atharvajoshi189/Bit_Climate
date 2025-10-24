@@ -1,0 +1,323 @@
+[
+    {
+        "station_name": "Ganga at Varanasi",
+        "state": "Uttar Pradesh",
+        "lat": 25.3176,
+        "lon": 82.9739,
+        "warning_level": 70.26,
+        "danger_level": 71.26
+    },
+    {
+        "station_name": "Yamuna at Delhi (Old Railway Bridge)",
+        "state": "Delhi",
+        "lat": 28.6562,
+        "lon": 77.2410,
+        "warning_level": 204.5,
+        "danger_level": 205.33
+    },
+    {
+        "station_name": "Brahmaputra at Guwahati",
+        "state": "Assam",
+        "lat": 26.1722,
+        "lon": 91.7458,
+        "warning_level": 48.97,
+        "danger_level": 49.67
+    },
+    {
+        "station_name": "Godavari at Nashik",
+        "state": "Maharashtra",
+        "lat": 20.0063,
+        "lon": 73.7932,
+        "warning_level": 532.0,
+        "danger_level": 533.0
+    },
+    {
+        "station_name": "Kanhan at Kamptee (Nagpur)",
+        "state": "Maharashtra",
+        "lat": 21.2255,
+        "lon": 79.1932,
+        "warning_level": 272.5,
+        "danger_level": 273.5
+    },
+    {
+        "station_name": "Narmada at Hoshangabad",
+        "state": "Madhya Pradesh",
+        "lat": 22.7533,
+        "lon": 77.7249,
+        "warning_level": 293.0,
+        "danger_level": 293.93
+    },
+    {
+        "station_name": "Mahanadi at Cuttack",
+        "state": "Odisha",
+        "lat": 20.4625,
+        "lon": 85.8828,
+        "warning_level": 25.5,
+        "danger_level": 26.42
+    },
+    {
+        "station_name": "Krishna at Vijayawada",
+        "state": "Andhra Pradesh",
+        "lat": 16.5062,
+        "lon": 80.6480,
+        "warning_level": 17.5,
+        "danger_level": 18.0
+    },
+    {
+        "station_name": "Kaveri at Tiruchirappalli",
+        "state": "Tamil Nadu",
+        "lat": 10.8050,
+        "lon": 78.6890,
+        "warning_level": 5.0,
+        "danger_level": 5.5
+    },
+    {
+        "station_name": "Sutlej at Ludhiana",
+        "state": "Punjab",
+        "lat": 30.9010,
+        "lon": 75.8573,
+        "warning_level": 220.0,
+        "danger_level": 221.0
+    },
+    {
+        "station_name": "Tapti at Surat",
+        "state": "Gujarat",
+        "lat": 21.1702,
+        "lon": 72.8311,
+        "warning_level": 9.0,
+        "danger_level": 10.0
+    },
+    {
+        "station_name": "Hooghly at Kolkata",
+        "state": "West Bengal",
+        "lat": 22.5726,
+        "lon": 88.3639,
+        "warning_level": 5.5,
+        "danger_level": 6.0
+    },
+    {
+        "station_name": "Ganga at Patna",
+        "state": "Bihar",
+        "lat": 25.6033,
+        "lon": 85.1588,
+        "warning_level": 49.54,
+        "danger_level": 50.54
+    },
+    {
+        "station_name": "Kosi at Basua",
+        "state": "Bihar",
+        "lat": 26.4021,
+        "lon": 86.9242,
+        "warning_level": 49.2,
+        "danger_level": 50.0
+    },
+    {
+        "station_name": "Gandak at Hajipur",
+        "state": "Bihar",
+        "lat": 25.6881,
+        "lon": 85.2140,
+        "warning_level": 54.45,
+        "danger_level": 55.45
+    },
+    {
+        "station_name": "Chambal at Kota",
+        "state": "Rajasthan",
+        "lat": 25.1800,
+        "lon": 75.8300,
+        "warning_level": 129.79,
+        "danger_level": 130.79
+    },
+    {
+        "station_name": "Musi at Hyderabad",
+        "state": "Telangana",
+        "lat": 17.3850,
+        "lon": 78.4867,
+        "warning_level": 573.0,
+        "danger_level": 574.0
+    },
+    {
+        "station_name": "Tungabhadra at Kurnool",
+        "state": "Andhra Pradesh",
+        "lat": 15.8270,
+        "lon": 78.0370,
+        "warning_level": 292.0,
+        "danger_level": 293.0
+    },
+    {
+        "station_name": "Vaigai at Madurai",
+        "state": "Tamil Nadu",
+        "lat": 9.9252,
+        "lon": 78.1198,
+        "warning_level": 2.5,
+        "danger_level": 3.0
+    },
+    {
+        "station_name": "Periyar at Aluva (Kochi)",
+        "state": "Kerala",
+        "lat": 10.1030,
+        "lon": 76.3533,
+        "warning_level": 2.0,
+        "danger_level": 2.8
+    },
+    {
+        "station_name": "Ghaghara at Ayodhya",
+        "state": "Uttar Pradesh",
+        "lat": 26.7900,
+        "lon": 82.1900,
+        "warning_level": 92.73,
+        "danger_level": 93.73
+    },
+    {
+        "station_name": "Rapti at Gorakhpur",
+        "state": "Uttar Pradesh",
+        "lat": 26.7554,
+        "lon": 83.3764,
+        "warning_level": 74.98,
+        "danger_level": 75.98
+    },
+    {
+        "station_name": "Sabarmati at Ahmedabad",
+        "state": "Gujarat",
+        "lat": 23.0225,
+        "lon": 72.5714,
+        "warning_level": 4.5,
+        "danger_level": 5.5
+    },
+    {
+        "station_name": "Teesta at Jalpaiguri",
+        "state": "West Bengal",
+        "lat": 26.5200,
+        "lon": 88.7200,
+        "warning_level": 85.0,
+        "danger_level": 86.0
+    },
+    {
+        "station_name": "Jhelum at Srinagar",
+        "state": "Jammu and Kashmir",
+        "lat": 34.0838,
+        "lon": 74.7973,
+        "warning_level": 18.0,
+        "danger_level": 23.0
+    },
+    {
+        "station_name": "Indus at Leh",
+        "state": "Ladakh",
+        "lat": 34.1526,
+        "lon": 77.5771,
+        "warning_level": 3.0,
+        "danger_level": 4.0
+    },
+    {
+        "station_name": "Beas at Mandi",
+        "state": "Himachal Pradesh",
+        "lat": 31.7088,
+        "lon": 76.9329,
+        "warning_level": 750.0,
+        "danger_level": 751.5
+    },
+    {
+        "station_name": "Gomti at Lucknow",
+        "state": "Uttar Pradesh",
+        "lat": 26.8467,
+        "lon": 80.9462,
+        "warning_level": 112.0,
+        "danger_level": 113.0
+    },
+    {
+        "station_name": "Damodar at Asansol",
+        "state": "West Bengal",
+        "lat": 23.6826,
+        "lon": 86.9563,
+        "warning_level": 105.0,
+        "danger_level": 106.0
+    },
+    {
+        "station_name": "Subarnarekha at Jamshedpur",
+        "state": "Jharkhand",
+        "lat": 22.8041,
+        "lon": 86.2029,
+        "warning_level": 121.5,
+        "danger_level": 122.5
+    },
+    {
+        "station_name": "Palar at Vellore",
+        "state": "Tamil Nadu",
+        "lat": 12.9165,
+        "lon": 79.1325,
+        "warning_level": 3.5,
+        "danger_level": 4.5
+    },
+    {
+        "station_name": "Mahi at Vadodara",
+        "state": "Gujarat",
+        "lat": 22.3072,
+        "lon": 73.1812,
+        "warning_level": 7.0,
+        "danger_level": 8.0
+    },
+    {
+        "station_name": "Luni at Jodhpur",
+        "state": "Rajasthan",
+        "lat": 26.2389,
+        "lon": 73.0243,
+        "warning_level": 2.0,
+        "danger_level": 3.0
+    },
+    {
+        "station_name": "Wainganga at Bhandara",
+        "state": "Maharashtra",
+        "lat": 21.1667,
+        "lon": 79.6500,
+        "warning_level": 244.0,
+        "danger_level": 245.0
+    },
+    {
+        "station_name": "Betwa at Vidisha",
+        "state": "Madhya Pradesh",
+        "lat": 23.5255,
+        "lon": 77.8080,
+        "warning_level": 427.5,
+        "danger_level": 428.5
+    },
+    {
+        "station_name": "Baitarani at Bhadrak",
+        "state": "Odisha",
+        "lat": 21.0500,
+        "lon": 86.3333,
+        "warning_level": 17.83,
+        "danger_level": 18.83
+    },
+    {
+        "station_name": "Pennar at Nellore",
+        "state": "Andhra Pradesh",
+        "lat": 14.4426,
+        "lon": 79.9865,
+        "warning_level": 15.0,
+        "danger_level": 16.0
+    },
+    {
+        "station_name": "Pamba at Pathanamthitta",
+        "state": "Kerala",
+        "lat": 9.3640,
+        "lon": 76.8837,
+        "warning_level": 10.0,
+        "danger_level": 11.0
+    },
+    {
+        "station_name": "Sharavathi at Honnavar",
+        "state": "Karnataka",
+        "lat": 14.2800,
+        "lon": 74.4500,
+        "warning_level": 2.0,
+        "danger_level": 3.0
+    },
+    {
+        "station_name": "Alaknanda at Rudraprayag",
+        "state": "Uttarakhand",
+        "lat": 30.2839,
+        "lon": 78.9810,
+        "warning_level": 625.0,
+        "danger_level": 626.0
+    }
+]
+

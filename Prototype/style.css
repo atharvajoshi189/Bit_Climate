@@ -1,0 +1,189 @@
+/* Import a clean, modern font */
+@import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;700&display=swap');
+
+/* --- CSS Variables for our Theme --- */
+:root {
+    --bg-color: #fdfcfa;
+    --text-color: #1a202c;
+    --text-muted: #555;
+    --accent-teal: #00c49a;
+    --accent-teal-hover: #00a37e;
+    --accent-coral: #ff6b6b;
+    --accent-coral-hover: #e05252;
+    --card-bg: #ffffff;
+    --shadow-color: rgba(0, 0, 0, 0.07);
+    --shadow-hover-color: rgba(0, 0, 0, 0.1);
+}
+
+/* --- Basic Reset & Body Styling --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Be Vietnam Pro', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+/* --- Header & Navigation --- */
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 5%;
+    background-color: var(--bg-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    transition: box-shadow 0.3s ease-in-out;
+}
+
+.main-header.scrolled {
+    box-shadow: 0 4px 15px var(--shadow-color);
+}
+
+.logo {
+    font-weight: 700;
+    font-size: 1.5rem;
+}
+
+nav a {
+    text-decoration: none;
+    color: var(--text-muted);
+    margin-left: 30px;
+    font-weight: 500;
+    transition: color 0.3s;
+}
+nav a:hover {
+    color: var(--accent-coral);
+}
+
+/* --- Buttons --- */
+.button-primary {
+    background-color: var(--accent-teal);
+    color: white;
+    padding: 10px 25px;
+    border-radius: 50px;
+    text-decoration: none;
+    transition: background-color 0.3s;
+}
+.button-primary:hover {
+    background-color: var(--accent-teal-hover);
+}
+
+.button-secondary {
+    background-color: var(--accent-coral);
+    color: white;
+    padding: 15px 35px;
+    border-radius: 50px;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 1.1rem;
+    display: inline-block; /* Added for proper styling */
+    transition: all 0.3s;
+}
+.button-secondary:hover {
+    background-color: var(--accent-coral-hover);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px var(--shadow-hover-color);
+}
+
+/* --- Hero Section --- */
+.hero {
+    text-align: center;
+    padding: 80px 20px;
+}
+.hero h1 {
+    font-size: 4rem;
+    margin-bottom: 20px;
+}
+.hero p {
+    font-size: 1.2rem;
+    color: #666;
+    max-width: 600px;
+    margin: 0 auto 30px auto;
+}
+
+/* --- Section Cards (Homepage) --- */
+.sections-container {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    padding: 50px 5%;
+    flex-wrap: wrap;
+}
+.section-card {
+    background-color: var(--card-bg);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px var(--shadow-color);
+    width: 350px;
+    text-align: center;
+    padding: 40px 30px;
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.section-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 40px var(--shadow-hover-color);
+}
+.section-card h2 {
+    font-size: 2rem;
+    margin-bottom: 15px;
+}
+.section-card p {
+    color: #777;
+}
+
+/* --- Feature Cards (Land Page) --- */
+.feature-card {
+    background: linear-gradient(145deg, #ffffff, #e6e6e6);
+    border-radius: 20px;
+    box-shadow: 0 10px 30px var(--shadow-color);
+    width: 450px;
+    padding: 40px;
+    text-align: center;
+}
+.feature-card .feature-icon {
+    font-size: 3rem;
+    margin-bottom: 20px;
+}
+.feature-card h2 {
+    font-size: 1.8rem;
+    margin-bottom: 15px;
+}
+.feature-card p {
+    color: #555;
+    margin-bottom: 30px;
+}
+
+/* --- Animations --- */
+.fade-in {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInAnimation 0.8s ease-out forwards;
+}
+
+@keyframes fadeInAnimation {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+/* --- Hero Section Specific Styles --- */
+.hero-land {
+    background-color: #6ddd76; /* Light green for Land */
+}
+
+.hero-air {
+    background-color: #b4d7ee; /* Light blue for Air */
+}
+
+.hero-water {
+    background-color: #469ac1; /* Light cyan for Water */
+}

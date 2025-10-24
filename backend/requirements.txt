@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+python-multipart
+torch
+torchvision
+Pillow
+requests
+reportlab
+google-api-python-client
+earthengine-api
+scikit-learn==1.6.1
+pandas
+joblib
