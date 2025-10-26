@@ -11,14 +11,14 @@ try:
     if os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
         print("Found GOOGLE_APPLICATION_CREDENTIALS. Initializing Earth Engine with service account...")
         # Use service account credentials on server
-        ee.Initialize(credentials='GOOGLE_APPLICATION_CREDENTIALS')
+        ee.Initialize(credentials='GOOGLE_APPLICATION_CREDENTIALS', project='psychic-rush-470109-r9')
         print("Earth Engine Initialized Successfully (Server Mode).")
     else:
         # If the environment variable is NOT set, assume local development
         # Try initializing directly first (might work if gcloud auth application-default login was used)
         print("GOOGLE_APPLICATION_CREDENTIALS not found. Attempting default initialization (Local Mode)...")
         try:
-            ee.Initialize()
+            ee.Initialize(project='psychic-rush-470109-r9')
             print("Earth Engine Initialized Successfully (Local Mode - Default Credentials).")
         except (ee.EEException, google_auth_exceptions.DefaultCredentialsError) as e:
             # If default/direct init fails, fall back to interactive Authenticate
