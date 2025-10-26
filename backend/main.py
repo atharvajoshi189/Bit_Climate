@@ -21,13 +21,12 @@ from datetime import datetime
 from pydantic import BaseModel
 
 # --- Project-Specific Imports (Absolute Paths) ---
-from backend.gee_utils import analyze_area 
-from backend.pdf_report import create_pdf_report
-from backend.crop_disease.predictor import predict_disease
-from backend.irrigation_ai import get_smart_recommendation as get_irrigation_recommendation
-# NYA IMPORT: SHEHAR KE NAAM WALA FUNCTION
-from backend.risk_analyzer import get_risk_prediction_by_city
-from backend.ghg_detector import analyze_no2_for_area
+from gee_utils import analyze_area
+from pdf_report import create_pdf_report
+from crop_disease.predictor import predict_disease
+from irrigation_ai import get_smart_recommendation as get_irrigation_recommendation
+from risk_analyzer import get_risk_prediction_by_city
+from ghg_detector import analyze_no2_for_area
 from pydantic import BaseModel
 from typing import List
 import google.generativeai as genai
