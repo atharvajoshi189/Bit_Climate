@@ -3,12 +3,15 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { useAuth } from "@clerk/nextjs"; // <-- IMPORT useAuth
+import { useRouter } from 'next/navigation'; // <-- IMPORT useRouter
 import { Trees, Sprout, ScanLine, Wheat, ArrowLeft, Upload, Aperture } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider';
 import StorySection from '@/components/StorySection';
 import { landStories } from '@/lib/storiesData';
-import saveActivity from '@/lib/saveActivity'; // <-- use the helper
+// Removed: saveActivity import (logging handled by awardPoints)
+import { awardPointsClientSide } from '@/lib/awardPoints'; // <-- IMPORT HELPER
 
 // Helper Components
 const FadeInSection = ({ children }: { children: React.ReactNode }) => {
@@ -29,8 +32,12 @@ const FadeInSection = ({ children }: { children: React.ReactNode }) => {
     return <div className="fade-in-section" ref={domRef}>{children}</div>;
 };
 
-// Deforestation Tool
+// ============================================================
+// DEFORESTATION TOOL (WITH LOGIN CHECK & POINTS)
+// ============================================================
 const DeforestationTool = ({ onBack }: { onBack: () => void }) => {
+    const { userId } = useAuth(); // <-- Get userId
+    const router = useRouter(); // <-- Initialize router
     const [geometry, setGeometry] = useState<any>(null);
     const [analysisResult, setAnalysisResult] = useState<any>(null);
     const [loading, setLoading] = useState(false);
@@ -46,7 +53,18 @@ const DeforestationTool = ({ onBack }: { onBack: () => void }) => {
     const handleShapeDrawn = useCallback((geom: any) => { setGeometry(geom); setAnalysisResult(null); }, []);
 
     const handleAnalyse = async () => {
+        // --- ADD LOGIN CHECK ---
+        if (!userId) {
+            router.push('/sign-in');
+            return;
+        }
+        // --- END LOGIN CHECK ---
+
         if (!geometry || !startDate || !endDate) { alert("Please draw a shape and select both start and end dates."); return; }
+        if (new Date(startDate) >= new Date(endDate)) {
+             alert("Start date must be before end date.");
+             return;
+        }
         setLoading(true); setError(null); setAnalysisResult(null);
         try {
             const formData = new FormData();
@@ -54,21 +72,34 @@ const DeforestationTool = ({ onBack }: { onBack: () => void }) => {
             formData.append("start_date", startDate);
             formData.append("end_date", endDate);
             const res = await fetch("http://127.0.0.1:8000/analyze_area", { method: "POST", body: formData });
+            
+            if (!res.ok) { 
+                let errorMsg = "Analysis failed";
+                try { const data = await res.json(); errorMsg = data.detail || errorMsg;} catch (_) {}
+                throw new Error(errorMsg); 
+            }
             const data = await res.json();
-            if (!res.ok) { throw new Error(data.detail || "Analysis failed"); }
+            if (data.detail) { throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)); }
+
             setAnalysisResult(data);
 
-            // log activity
-            await saveActivity("Land: Deforestation Analysis", `Analyzed an area between ${startDate} and ${endDate}.`);
+            // --- AWARD POINTS & LOG ON SUCCESS ---
+            const activityType = "Land: Deforestation Analysis";
+            const activityDetails = `Analyzed area between ${startDate} and ${endDate}.`;
+            const pointsToGive = 15; 
+            awardPointsClientSide(pointsToGive, activityType, activityDetails); // Handles both points and logging
+            // --- END ---
+
         } catch (err: any) { 
-            setError(err.message); 
+            setError(err.message || "An unknown error occurred."); 
             console.error("Deforestation analysis error:", err);
         } finally { setLoading(false); }
     };
 
-    const handleDownloadReport = async () => { /* ... keep your existing code if any ... */ };
+    const handleDownloadReport = async () => { /* ... */ };
     
     return (
+        // --- JSX ---
         <div className="w-full max-w-7xl mx-auto animate-fade-in">
             <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors">
                 <ArrowLeft className="h-5 w-5" /> Back to Land Menu
@@ -85,16 +116,16 @@ const DeforestationTool = ({ onBack }: { onBack: () => void }) => {
                             <label htmlFor="end-date" className="block text-sm font-medium text-gray-300 mb-2">End Date</label>
                             <input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full bg-gray-900 border-gray-700 rounded-md p-2 text-white focus:ring-2 focus:ring-[#C026D3] focus:outline-none" />
                         </div>
-                        <button onClick={handleAnalyse} disabled={loading || !geometry} className="w-full bg-[#C026D3] text-white font-bold py-3 rounded-lg hover:bg-opacity-80 transition-colors disabled:bg-opacity-50">
+                        <button onClick={handleAnalyse} disabled={loading || !geometry || !startDate || !endDate} className="w-full bg-[#C026D3] text-white font-bold py-3 rounded-lg hover:bg-opacity-80 transition-colors disabled:bg-opacity-50 disabled:cursor-not-allowed">
                             {loading ? "Analyzing..." : "Analyze Area"}
                         </button>
-                        {error && <p className="text-red-500 text-sm">Error: {error}</p>}
-                        {analysisResult && (
+                        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
+                        {analysisResult && !error && (
                             <div className="space-y-4 pt-4 border-t border-gray-700">
                                 <h3 className="font-semibold text-white">Visual Comparison:</h3>
                                 <div className="grid grid-cols-2 gap-2 mt-2">
-                                    <img src={analysisResult.start_map} alt="Start Map" className="border border-gray-700 rounded" />
-                                    <img src={analysisResult.end_map_overlay} alt="End Map" className="border border-gray-700 rounded" />
+                                    {analysisResult.start_map && <img src={analysisResult.start_map} alt="Start Map" className="border border-gray-700 rounded" />}
+                                    {analysisResult.end_map_overlay && <img src={analysisResult.end_map_overlay} alt="End Map" className="border border-gray-700 rounded" />}
                                 </div>
                                 <h3 className="font-semibold mt-4 text-white">Statistics:</h3>
                                 <pre className="text-xs p-2 mt-2 bg-gray-900 rounded text-gray-300">{JSON.stringify(analysisResult.stats, null, 2)}</pre>
@@ -104,15 +135,17 @@ const DeforestationTool = ({ onBack }: { onBack: () => void }) => {
                                             <h2 className="text-2xl font-bold text-white">Visualize the Impact</h2>
                                             <p className="text-md text-gray-400 mt-2">Drag the slider to see the change.</p>
                                         </div>
-                                        <div className="w-full max-w-5xl mx-auto rounded-lg overflow-hidden border-2 border-teal-400/50 shadow-lg shadow-teal-500/10 mt-6 aspect-video">
-                                            <ReactCompareSlider
-                                                itemOne={<ReactCompareSliderImage src={analysisResult.start_map} alt="Before" />}
-                                                itemTwo={<ReactCompareSliderImage src={analysisResult.end_map_overlay} alt="After" />}
-                                            />
-                                        </div>
+                                        {analysisResult.start_map && analysisResult.end_map_overlay && (
+                                            <div className="w-full max-w-5xl mx-auto rounded-lg overflow-hidden border-2 border-teal-400/50 shadow-lg shadow-teal-500/10 mt-6 aspect-video">
+                                                <ReactCompareSlider
+                                                    itemOne={<ReactCompareSliderImage src={analysisResult.start_map} alt="Before" />}
+                                                    itemTwo={<ReactCompareSliderImage src={analysisResult.end_map_overlay} alt="After" />}
+                                                />
+                                            </div>
+                                        )}
                                     </FadeInSection>
                                 </div>
-                                <button onClick={handleDownloadReport} className="w-full bg-gray-700 text-white font-bold py-3 rounded-lg hover:bg-gray-600 transition-colors">Download Report</button>
+                                {/* <button onClick={handleDownloadReport} className="w-full bg-gray-700 text-white font-bold py-3 rounded-lg hover:bg-gray-600 transition-colors mt-4">Download Report</button> */}
                             </div>
                         )}
                     </div>
@@ -125,8 +158,12 @@ const DeforestationTool = ({ onBack }: { onBack: () => void }) => {
     );
 };
 
-// Crop Disease Tool
+// ============================================================
+// CROP DISEASE TOOL (WITH LOGIN CHECK & POINTS)
+// ============================================================
 const CropDiseaseTool = ({ onBack }: { onBack: () => void }) => {
+    const { userId } = useAuth(); // <-- Get userId
+    const router = useRouter(); // <-- Initialize router
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -136,6 +173,10 @@ const CropDiseaseTool = ({ onBack }: { onBack: () => void }) => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
+            if (selectedFile.size > 5 * 1024 * 1024) { 
+                setError('File too large (max 5MB)');
+                setFile(null); setPreview(null); return;
+            }
             setFile(selectedFile);
             const reader = new FileReader();
             reader.onloadend = () => setPreview(reader.result as string);
@@ -145,23 +186,46 @@ const CropDiseaseTool = ({ onBack }: { onBack: () => void }) => {
     };
 
     const handlePredict = async () => {
+        // --- ADD LOGIN CHECK ---
+        if (!userId) {
+            router.push('/sign-in');
+            return;
+        }
+        // --- END LOGIN CHECK ---
+
         if (!file) return;
         setLoading(true); setError(null); setResult("Analyzing...");
         const formData = new FormData();
         formData.append("file", file);
         try {
             const res = await fetch("http://127.0.0.1:8000/predict_crop_disease", { method: "POST", body: formData });
+            if (!res.ok) { 
+                let errorMsg = "Prediction failed";
+                try { const data = await res.json(); errorMsg = data.detail || errorMsg;} catch (_) {}
+                throw new Error(errorMsg); 
+            }
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || "Prediction failed.");
+            if (data.detail) { throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)); }
+
             const formattedResult = data.predicted_disease.replace(/___/g, " - ").replace(/_/g, " ");
             setResult(formattedResult);
 
-            // log activity
-            await saveActivity("Land: Crop Disease Check", `Detected: ${formattedResult}`);
-        } catch (err: any) { setError(err.message); setResult(null); console.error("Crop disease error:", err); } finally { setLoading(false); }
+            // --- AWARD POINTS & LOG ON SUCCESS ---
+            const activityType = "Land: Crop Disease Check";
+            const activityDetails = `Detected: ${formattedResult}`;
+            const pointsToGive = 10;
+            awardPointsClientSide(pointsToGive, activityType, activityDetails); // Handles both
+            // --- END ---
+
+        } catch (err: any) { 
+            setError(err.message || "An unknown error occurred."); 
+            setResult(null); 
+            console.error("Crop disease error:", err); 
+        } finally { setLoading(false); }
     };
 
     return (
+        // --- JSX ---
         <div className="w-full max-w-2xl mx-auto animate-fade-in">
              <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors">
                 <ArrowLeft className="h-5 w-5" /> Back to Land Menu
@@ -180,17 +244,22 @@ const CropDiseaseTool = ({ onBack }: { onBack: () => void }) => {
                     </button>
                 </div>
                 {error && <p className="mt-6 text-red-500">Error: {error}</p>}
-                {result && <p className="mt-6 text-lg text-white">Result: <span className="font-bold text-[#C026D3]">{result}</span></p>}
+                {result && !loading && !error && <p className="mt-6 text-lg text-white">Result: <span className="font-bold text-[#C026D3]">{result}</span></p>}
+                {loading && <p className="mt-6 text-lg text-white">Result: <span className="font-bold text-[#C026D3]">Analyzing...</span></p>}
             </div>
         </div>
     );
 };
 
-// Crop Recommendation Tool
+// ============================================================
+// CROP RECOMMENDATION TOOL (WITH LOGIN CHECK & POINTS)
+// ============================================================
 const CropRecommendationTool = ({ onBack }: { onBack: () => void }) => {
+    const { userId } = useAuth(); // <-- Get userId
+    const router = useRouter(); // <-- Initialize router
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
-    const [month, setMonth] = useState<string>("January");
+    const [month, setMonth] = useState<string>("January"); // Default to January
     const [location, setLocation] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any | null>(null);
@@ -200,6 +269,10 @@ const CropRecommendationTool = ({ onBack }: { onBack: () => void }) => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0];
         if (selectedFile) {
+             if (selectedFile.size > 5 * 1024 * 1024) { 
+                setError('File too large (max 5MB)');
+                setFile(null); setPreview(null); return;
+            }
             setFile(selectedFile);
             const reader = new FileReader();
             reader.onloadend = () => setPreview(reader.result as string);
@@ -209,6 +282,13 @@ const CropRecommendationTool = ({ onBack }: { onBack: () => void }) => {
     };
 
     const handleRecommend = async () => {
+        // --- ADD LOGIN CHECK ---
+        if (!userId) {
+            router.push('/sign-in');
+            return;
+        }
+        // --- END LOGIN CHECK ---
+
         if (!file || !month || !location) { alert("Please provide all three inputs: soil image, month, and location."); return; }
         setLoading(true); setError(null); setResult(null);
         const formData = new FormData();
@@ -217,15 +297,31 @@ const CropRecommendationTool = ({ onBack }: { onBack: () => void }) => {
         formData.append("location", location);
         try {
             const res = await fetch("http://127.0.0.1:8000/recommend_crop_from_photo", { method: "POST", body: formData });
+            if (!res.ok) { 
+                let errorMsg = "Recommendation failed";
+                try { const data = await res.json(); errorMsg = data.detail || errorMsg;} catch (_) {}
+                throw new Error(errorMsg); 
+            }
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || "Recommendation failed.");
+            if (data.detail) { throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)); }
+            
             setResult(data);
 
-            await saveActivity("Land: Crop Recommendation", `Recommended: ${data.recommended_crop} for ${data.predicted_soil_type} soil.`);
-        } catch (err: any) { setError(err.message); console.error("Crop recommendation error:", err); } finally { setLoading(false); }
+            // --- AWARD POINTS & LOG ON SUCCESS ---
+            const activityType = "Land: Crop Recommendation";
+            const activityDetails = `Recommended: ${data.recommended_crop} for ${data.predicted_soil_type} soil in ${location}.`;
+            const pointsToGive = 10;
+            awardPointsClientSide(pointsToGive, activityType, activityDetails); // Handles both
+            // --- END ---
+
+        } catch (err: any) { 
+            setError(err.message || "An unknown error occurred."); 
+            console.error("Crop recommendation error:", err); 
+        } finally { setLoading(false); }
     };
 
     return (
+        // --- JSX ---
          <div className="w-full max-w-2xl mx-auto animate-fade-in">
              <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors">
                 <ArrowLeft className="h-5 w-5" /> Back to Land Menu
@@ -239,7 +335,7 @@ const CropRecommendationTool = ({ onBack }: { onBack: () => void }) => {
                     </div>
                     <label htmlFor="soil-upload" className="w-full text-center block cursor-pointer bg-gray-700 text-white font-semibold px-6 py-3 rounded-lg hover:bg-gray-600 transition-colors">Choose Soil Photo</label>
                     <input id="soil-upload" type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-                    <Select onValueChange={setMonth}>
+                    <Select onValueChange={setMonth} defaultValue={month}>
                         <SelectTrigger className="w-full bg-gray-900 border-gray-700 rounded-md p-3 text-lg h-auto">
                             <SelectValue placeholder="Select Planting Month..." />
                         </SelectTrigger>
@@ -248,13 +344,13 @@ const CropRecommendationTool = ({ onBack }: { onBack: () => void }) => {
                         </SelectContent>
                     </Select>
                     <input type="text" placeholder="Enter Your Location (e.g., Nagpur)" value={location} onChange={(e) => setLocation(e.target.value)} className="w-full bg-gray-900 border-gray-700 rounded-md p-3 text-white focus:ring-2 focus:ring-[#C026D3] focus:outline-none" />
-                    <button onClick={handleRecommend} disabled={!file || !month || !location || loading} className="w-full bg-[#C026D3] text-white font-bold py-3 rounded-lg hover:bg-opacity-80 transition-colors disabled:bg-opacity-50">
+                    <button onClick={handleRecommend} disabled={!file || !month || !location || loading} className="w-full bg-[#C026D3] text-white font-bold py-3 rounded-lg hover:bg-opacity-80 transition-colors disabled:bg-opacity-50 disabled:cursor-not-allowed">
                         {loading ? "Analyzing..." : "Get Recommendation"}
                     </button>
                     {error && <p className="mt-4 text-red-500 text-center">Error: {error}</p>}
-                    {result && (
+                    {result && !error && (
                         <div className="mt-4 text-center bg-gray-900/50 p-4 rounded-lg border border-gray-700">
-                            <p className="text-sm text-gray-400">Based on our analysis of <span className="font-semibold text-gray-200">{result.predicted_soil_type}</span>:</p>
+                            <p className="text-sm text-gray-400">Based on our analysis of <span className="font-semibold text-gray-200">{result.predicted_soil_type}</span> soil:</p>
                             <h4 className="text-lg text-white mt-2">Recommended Crop:</h4>
                             <p className="font-bold text-3xl text-[#C026D3] capitalize mt-1">{result.recommended_crop}</p>
                         </div>
@@ -265,17 +361,29 @@ const CropRecommendationTool = ({ onBack }: { onBack: () => void }) => {
     );
 };
 
-// Main Land Page Component
+// ============================================================
+// MAIN LAND PAGE COMPONENT (Corrected Logging Strategy)
+// ============================================================
 export default function LandPage() {
     const [activeTool, setActiveTool] = useState<string | null>(null);
 
+     // --- MODIFIED: REMOVED logActivity call from here ---
+     // Only change the view state when a tool is opened
+    const onOpenTool = (toolName: 'deforestation' | 'plant-disease' | 'crop-recommendation') => {
+        setActiveTool(toolName);
+        // REMOVED: No premature logging when opening
+        // try { ... saveActivity(...) ... } catch { ... }
+    };
+    // --- END MODIFICATION ---
+
     const renderContent = () => {
+        // ... (keep existing switch case structure) ...
         switch (activeTool) {
             case 'deforestation': return <DeforestationTool onBack={() => setActiveTool(null)} />;
             case 'plant-disease': return <CropDiseaseTool onBack={() => setActiveTool(null)} />;
             case 'crop-recommendation': return <CropRecommendationTool onBack={() => setActiveTool(null)} />;
             default:
-                return (
+                return ( // Main Menu View
                     <>
                         <div className="animate-fade-in">
                             <div className="max-w-4xl mx-auto">
@@ -283,11 +391,13 @@ export default function LandPage() {
                                 <p className="mt-4 text-lg text-gray-300">Applying AI to understand and preserve our land, from vast forests to individual crops.</p>
                             </div>
                             <div className="mt-16 grid lg:grid-cols-2 gap-8">
-                                <div onClick={() => setActiveTool('deforestation')} className="cursor-pointer bg-[#161B22]/70 backdrop-blur-md p-8 rounded-2xl border border-fuchsia-500/30 card-glow-magenta flex flex-col justify-center">
+                                {/* Deforestation Card */}
+                                <div onClick={() => onOpenTool('deforestation')} className="cursor-pointer bg-[#161B22]/70 backdrop-blur-md p-8 rounded-2xl border border-fuchsia-500/30 card-glow-magenta flex flex-col justify-center">
                                     <div className="w-16 h-16 rounded-full bg-fuchsia-900/50 flex items-center justify-center mb-6 mx-auto"><Trees className="h-8 w-8 text-[#C026D3]"/></div>
                                     <h3 className="text-3xl font-bold text-white mb-3">Deforestation Detection</h3>
                                     <p className="text-gray-400">High-resolution satellite image analysis to monitor forest cover and detect illegal logging activities in near real-time.</p>
                                 </div>
+                                {/* Sustainable Agriculture Card Group */}
                                 <div className="bg-[#161B22]/70 backdrop-blur-md p-8 rounded-2xl border border-fuchsia-500/30 card-glow-magenta space-y-6">
                                     <div className="text-center">
                                         <div className="w-16 h-16 rounded-full bg-fuchsia-900/50 flex items-center justify-center mb-6 mx-auto"><Sprout className="h-8 w-8 text-[#C026D3]"/></div>
@@ -295,11 +405,13 @@ export default function LandPage() {
                                         <p className="text-gray-400">AI-powered tools for modern farming, enhancing crop yield and promoting eco-friendly practices.</p>
                                     </div>
                                     <div className="grid md:grid-cols-2 gap-4 pt-4 border-t border-fuchsia-500/20">
-                                        <div onClick={() => setActiveTool('plant-disease')} className="p-4 rounded-lg sub-card cursor-pointer">
+                                        {/* Plant Disease Sub-Card */}
+                                        <div onClick={() => onOpenTool('plant-disease')} className="p-4 rounded-lg sub-card cursor-pointer">
                                             <div className="flex items-center gap-3 mb-2"><ScanLine className="h-6 w-6 text-[#C026D3]"/><h4 className="font-bold text-white">Plant Diseases Detection</h4></div>
                                             <p className="text-sm text-gray-400">Instantly diagnose plant diseases by uploading a leaf image.</p>
                                         </div>
-                                        <div onClick={() => setActiveTool('crop-recommendation')} className="p-4 rounded-lg sub-card cursor-pointer">
+                                        {/* Crop Recommendation Sub-Card */}
+                                        <div onClick={() => onOpenTool('crop-recommendation')} className="p-4 rounded-lg sub-card cursor-pointer">
                                             <div className="flex items-center gap-3 mb-2"><Wheat className="h-6 w-6 text-[#C026D3]"/><h4 className="font-bold text-white">Crop Recommendation</h4></div>
                                             <p className="text-sm text-gray-400">Get AI-based suggestions for the best crops based on soil and weather data.</p>
                                         </div>
@@ -307,6 +419,7 @@ export default function LandPage() {
                                 </div>
                             </div>
                         </div>
+                        {/* Stories Section */}
                         <div className="mt-16">
                             <StorySection title="Inspired Action for Our Land" stories={landStories} />
                         </div>
@@ -317,19 +430,22 @@ export default function LandPage() {
 
     return (
         <>
+            {/* Styles (Unchanged) */}
             <style>{`
                 .card-glow-magenta:hover { transform: translateY(-5px); box-shadow: 0 0 25px rgba(192, 38, 211, 0.5), 0 0 40px rgba(192, 38, 211, 0.4); }
                 .sub-card:hover { background-color: rgba(255, 255, 255, 0.05); }
-                .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+                .animate-fade-in { animation: fadeIn 0.5s ease-in-out forwards; } /* Ensure forwards */
                 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                 .fade-in-section { opacity: 0; transform: translateY(10vh); transition: opacity 1s ease-out, transform 1s ease-out; }
                 .fade-in-section.is-visible { opacity: 1; transform: translateY(0); }
                 .map-container { height: 100%; width: 100%; }
             `}</style>
+            {/* Background Video (Unchanged) */}
             <div className="fixed top-0 left-0 w-full h-full -z-10">
                 <video autoPlay loop muted className="w-full h-full object-cover"><source src="/videos/land-background.mp4" type="video/mp4" /></video>
                 <div className="absolute inset-0 bg-black opacity-60"></div>
             </div>
+            {/* Main Content (Unchanged) */}
             <main>
                 <section className="min-h-screen w-full flex items-center justify-center relative pt-20 pb-20">
                     <div className="container mx-auto px-6 text-center">

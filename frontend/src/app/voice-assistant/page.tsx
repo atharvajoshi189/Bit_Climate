@@ -5,6 +5,53 @@ import { useRouter } from 'next/navigation';
 import * as THREE from 'three';
 import { X, Mic, MicOff } from 'lucide-react';
 
+// Type declaration for SpeechRecognition
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+  isFinal: boolean;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  abort(): void;
+  onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+  onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
+
 // --- MODIFIED: Video ke Colors ---
 const COLOR_IDLE = new THREE.Color(0x888888);      // Dim Grey
 const COLOR_LISTENING = new THREE.Color(0xFFD700); // Golden
@@ -140,10 +187,11 @@ export default function VoiceAssistantPage() {
         // --- USER SPEAKING: Real Pulse ---
         const analyser = audioAnalyserRef.current;
         const dataArray = audioDataArrayRef.current;
-        analyser.getByteFrequencyData(dataArray);
+        const buffer = new Uint8Array(dataArray.length);
+        analyser.getByteFrequencyData(buffer);
         for (let i = 0; i < positions.length; i += 3) {
-          const dataIndex = (i / 3) % dataArray.length;
-          const amplitude = dataArray[dataIndex];
+          const dataIndex = (i / 3) % buffer.length;
+          const amplitude = buffer[dataIndex];
           // --- MODIFIED: Pulse ko strong banaya ---
           const displacement = (amplitude / 255.0) * 0.6; // 0.6 (was 0.2)
           const pulse = 1.0 + displacement;

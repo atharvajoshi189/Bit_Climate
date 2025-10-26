@@ -21,6 +21,7 @@ interface CityAqiData {
   time: { s: string; };
 }
 
+// Helper function for AQI info (Unchanged)
 const getAqiInfo = (aqi: number) => {
   if (aqi <= 50) return { level: "Good", color: "bg-green-500", advice: "Air quality is considered satisfactory, and air pollution poses little or no risk." };
   if (aqi <= 100) return { level: "Moderate", color: "bg-yellow-500", advice: "Some pollutants may be a moderate health concern for a very small number of people." };
@@ -30,7 +31,8 @@ const getAqiInfo = (aqi: number) => {
   return { level: "Hazardous", color: "bg-red-900", advice: "Health warnings of emergency conditions. The entire population is more likely to be affected." };
 };
 
-export default function CitySearch() {
+// --- MODIFIED: Accept onAnalysisSuccess prop ---
+export default function CitySearch({ onAnalysisSuccess }: { onAnalysisSuccess: (details: string) => void }) {
   const [city, setCity] = useState('');
   const [data, setData] = useState<CityAqiData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,14 +47,20 @@ export default function CitySearch() {
     setError(null);
 
     try {
-      // NOTE: We are calling the FastAPI backend here!
       const response = await fetch(`http://127.0.0.1:8000/air/pollution_by_city/${city}`);
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.detail || 'City not found or error fetching data.');
       }
-      const result = await response.json();
+      const result: CityAqiData = await response.json();
       setData(result);
+
+      // --- CALL CALLBACK ON SUCCESS ---
+      const aqiInfo = getAqiInfo(result.aqi);
+      const activityDetails = `Searched ${result.city.name}: AQI ${result.aqi} (${aqiInfo.level})`;
+      onAnalysisSuccess(activityDetails); // Call the parent function
+      // --- END CALLBACK ---
+
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -61,6 +69,7 @@ export default function CitySearch() {
   };
 
   return (
+    // --- JSX Unchanged ---
     <div className="bg-[#161B22]/70 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/30 mb-8">
       <h3 className="text-2xl font-bold text-white mb-4 text-center">Search Air Quality by City</h3>
       <form onSubmit={handleSearch} className="flex gap-2">
@@ -71,7 +80,7 @@ export default function CitySearch() {
           placeholder="e.g., Mumbai, Delhi, Nagpur..."
           className="w-full bg-gray-800 text-white px-4 py-2 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500"
         />
-        <button type="submit" disabled={loading} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2 disabled:bg-gray-500">
+        <button type="submit" disabled={loading || !city} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold px-4 py-2 rounded-lg flex items-center gap-2 disabled:bg-gray-500">
           <Search size={20} />
           {loading ? '...' : 'Search'}
         </button>

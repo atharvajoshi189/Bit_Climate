@@ -21,7 +21,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: require('leaflet/dist/images/marker-shadow.png').default,
 });
 
-// Type for the backend response, now including stats
+// Type for the backend response
 interface GhgResult {
     mapId: string;
     token: string;
@@ -32,10 +32,12 @@ interface GhgResult {
         mean: string;
         unit: string;
     };
+    detail?: any; 
 }
 
-// Helper function to interpret the average pollution level
+// Helper function for interpretation (Unchanged)
 const getInterpretation = (meanAqi: number) => {
+    // ... (keep the existing getInterpretation function code) ...
     if (meanAqi <= 30) return { level: "Low", color: "text-cyan-400", description: "Air quality is good. NO₂ pollution levels are low in this area." };
     if (meanAqi <= 60) return { level: "Moderate", color: "text-green-400", description: "Air quality is acceptable. There may be some presence of NO₂ from local sources." };
     if (meanAqi <= 90) return { level: "Elevated", color: "text-yellow-400", description: "NO₂ levels are elevated, likely due to traffic, industrial, or urban activity." };
@@ -43,8 +45,7 @@ const getInterpretation = (meanAqi: number) => {
     return { level: "Very High", color: "text-red-500", description: "NO₂ levels are very high, indicating a major pollution hotspot." };
 };
 
-// --- The Main Component ---
-export default function GhGDetector() {
+export default function GhGDetector({ onAnalysisSuccess }: { onAnalysisSuccess: (details: string) => void }) {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const defaultDate = yesterday.toISOString().split('T')[0];
@@ -57,14 +58,16 @@ export default function GhGDetector() {
 
     const handleAreaSelected = (e: any) => {
         setBounds(e.layer.getBounds());
-        // Clear previous results when a new area is drawn
         setResult(null);
         setError(null);
     };
     
     const handleClear = () => {
-        // Simple reload to reset the map state cleanly
-        window.location.reload(); 
+        setBounds(null);
+        setResult(null);
+        setError(null);
+        // Add layer removal logic if needed, or reload
+        // window.location.reload(); 
     };
 
     const handleAnalyze = async () => {
@@ -77,20 +80,62 @@ export default function GhGDetector() {
         setResult(null);
         
         try {
-            const boundsAsArray = [
-                [bounds.getSouth(), bounds.getWest()],
-                [bounds.getNorth(), bounds.getEast()]
+            // --- CORRECTED BOUNDS FORMAT ---
+            // Send as a list containing two lists: [ [minLat, minLng], [maxLat, maxLng] ]
+            const boundsAsListOfLists = [
+                [bounds.getSouthWest().lat, bounds.getSouthWest().lng], 
+                [bounds.getNorthEast().lat, bounds.getNorthEast().lng]
             ];
-            const response = await fetch('http://127.0.0.1:8000/air/ghg_emissions', {
+            // --- END CORRECTION ---
+            
+            console.log("Sending bounds:", JSON.stringify(boundsAsListOfLists)); // Log what's being sent
+
+            const response = await fetch('http://127.0.0.1:8000/air/ghg_emissions', { 
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ bounds: boundsAsArray, date: date }),
+                // Use the corrected format here
+                body: JSON.stringify({ bounds: boundsAsListOfLists, date: date }), 
             });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.detail || 'Failed to analyze emissions.');
+
+            // Improved Error Handling (Unchanged from previous version)
+            if (!response.ok) {
+                let errorMsg: string = `Error: ${response.status} ${response.statusText}`; 
+                try {
+                    const errData = await response.json();
+                    console.log("Backend Error Data:", errData); 
+                    if (errData && errData.detail) {
+                         if (typeof errData.detail === 'string') {
+                           errorMsg = errData.detail;
+                         } else {
+                           errorMsg = JSON.stringify(errData.detail); 
+                         }
+                    } 
+                } catch (jsonError) {
+                     console.error("Could not parse error JSON:", jsonError);
+                }
+                console.log("Final errorMsg before throw:", errorMsg, typeof errorMsg); 
+                throw new Error(errorMsg); 
+            }
+            
+            const data: GhgResult = await response.json();
+            if (data.detail) {
+                 if (typeof data.detail === 'string') {
+                    throw new Error(data.detail);
+                 } else {
+                    throw new Error(JSON.stringify(data.detail));
+                 }
+            }
+            
             setResult(data);
+
+            // Call Callback on Success (Unchanged)
+            const currentInterpretation = getInterpretation(parseFloat(data.stats.mean)); 
+            const activityDetails = `Area Analyzed (${currentInterpretation?.level || 'N/A'}) - Mean: ${data.stats.mean} ${data.stats.unit}`;
+            onAnalysisSuccess(activityDetails); 
+
         } catch (err: any) {
-            setError(err.message);
+            console.error("GHG Analysis Error Object:", err); 
+            setError(String(err.message || "An unknown error occurred during analysis.")); 
         } finally {
             setIsLoading(false);
         }
@@ -99,11 +144,11 @@ export default function GhGDetector() {
     const interpretation = result ? getInterpretation(parseFloat(result.stats.mean)) : null;
 
     return (
+        // --- JSX Unchanged ---
         <div className="bg-[#161B22]/80 backdrop-blur-md p-6 rounded-2xl border border-cyan-500/30">
             <h3 className="text-xl font-bold text-white mb-2">Draw an Area to Analyze NO₂ Emissions</h3>
             <p className="text-gray-400 mb-4">Use the rectangle tool on the map to select your area of interest for a 7-day average analysis.</p>
 
-            {/* --- MAP & CONTROLS --- */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start mb-6">
                 <div className="md:col-span-4 relative" style={{ height: '400px', borderRadius: '8px', overflow: 'hidden' }}>
                     <MapContainer center={[22.5937, 78.9629]} zoom={5} style={{ height: '100%', width: '100%' }}>
@@ -113,10 +158,10 @@ export default function GhGDetector() {
                                 position="topright"
                                 onCreated={handleAreaSelected}
                                 draw={{ rectangle: true, circle: false, polygon: false, polyline: false, marker: false, circlemarker: false }}
-                                edit={{ edit: false, remove: false }}
+                                edit={{ edit: false, remove: false }} 
                             />
                         </FeatureGroup>
-                        {result && <TileLayer url={result.urlTemplate} zIndex={10} />}
+                        {result && result.urlTemplate && <TileLayer url={result.urlTemplate} zIndex={10} />}
                     </MapContainer>
                 </div>
                 <div className="md:col-span-1 flex flex-col gap-4">
@@ -139,21 +184,20 @@ export default function GhGDetector() {
                         <Trash2 size={20} />
                         Clear
                     </button>
-                    {/* --- NEW: COLOR LEGEND --- */}
                     <div className="bg-gray-800 p-3 rounded-lg text-xs text-gray-300">
                         <h4 className="font-bold mb-2 text-center text-white">NO₂ Legend</h4>
                         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-blue-500"></div> Low</div>
                         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500"></div> Moderate</div>
-                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500"></div></div>
+                        <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-yellow-500"></div> Elevated</div> 
                         <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-red-500"></div> High</div>
                     </div>
                 </div>
             </div>
             
-            {/* --- RESULTS SECTION --- */}
             {isLoading && <p className="text-white text-center mt-4">Analyzing 7 days of satellite data... This may take a moment.</p>}
-            {error && <p className="text-red-400 text-center mt-4">{error}</p>}
-            {result && interpretation && (
+            {error && <p className="text-red-400 text-center mt-4">{error}</p>} 
+            
+            {result && interpretation && !error && ( 
                 <div className="mt-6 bg-gray-900 rounded-lg p-6 border border-gray-700">
                     <h3 className="text-2xl font-bold text-white text-center mb-4">Analysis Summary</h3>
                     <div className="text-center mb-6">

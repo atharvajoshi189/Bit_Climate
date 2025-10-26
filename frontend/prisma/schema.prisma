@@ -4,35 +4,38 @@
 generator client {
   provider = "prisma-client-js"
   output   = "../node_modules/.prisma/client"
-
 }
 
 datasource db {
   provider = "postgresql"
- url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
 }
 
 // ==========================================
-// DATA MODELS - YAHAN SE AAPKA KAAM SHURU HOTA HAI
+// DATA MODELS
 // ==========================================
 
 // Clerk se aane waale har user ke liye ek entry
 model User {
-  id          String      @id // Yeh Clerk ka User ID hoga
-  email       String      @unique
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  activities  Activity[]  // Ek user ki kai activities ho sakti hain
+  id        String     @id // Yeh Clerk ka User ID hoga
+  email     String     @unique
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // --- YEH AAPKA NAYA CHANGE HAI ---
+  points    Int        @default(0) // Gamification ke liye Eco-Points
+
+  activities Activity[] // Ek user ki kai activities ho sakti hain
 }
 
 // User ki har activity (jaise 'deforestation check') ke liye ek entry
 model Activity {
-  id          Int       @id @default(autoincrement())
-  type        String    // Jaise "Deforestation Analysis", "Crop Recommendation"
-  details     String?   // Extra jaankari, jaise "Mumbai Region"
-  createdAt   DateTime  @default(now())
+  id        Int      @id @default(autoincrement())
+  type      String   // Jaise "Deforestation Analysis", "Crop Recommendation"
+  details   String?  // Extra jaankari, jaise "Mumbai Region"
+  createdAt DateTime @default(now())
 
   // Activity aur User ke beech ka rishta
-  user        User      @relation(fields: [userId], references: [id])
-  userId      String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
 }

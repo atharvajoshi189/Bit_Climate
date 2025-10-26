@@ -3,8 +3,12 @@ export const dynamic = "force-dynamic";
 
 import { useUser } from "@clerk/nextjs";
 import Link from "next/link";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
+import useSWR from "swr";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+
 import {
   LayoutDashboard,
   History,
@@ -17,6 +21,7 @@ import {
   CheckCircle,
   FileText,
   RefreshCw,
+  Award,
 } from "lucide-react";
 import {
   BarChart,
@@ -39,8 +44,14 @@ interface Activity {
   createdAt: string;
 }
 
+interface UserProfile {
+  id: string;
+  email: string;
+  points: number;
+}
+
 // =============================================
-//  UI COMPONENTS
+//  Minor UI components (unchanged visually)
 // =============================================
 const StatCard = ({
   title,
@@ -98,38 +109,181 @@ const TimelineItem = ({
 );
 
 // =============================================
-//  MAIN DASHBOARD
+//  Helper: SWR fetcher
+// =============================================
+const fetcher = (url: string) =>
+  fetch(url, { cache: "no-store" }).then((res) => {
+    if (!res.ok) throw new Error("Fetch error");
+    return res.json();
+  });
+
+// =============================================
+//  Supabase Realtime setup helper
+// =============================================
+function getSupabaseClient(): SupabaseClient | null {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    console.warn("Supabase env vars missing - realtime disabled");
+    return null;
+  }
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
+
+// =============================================
+//  MAIN DASHBOARD (UI preserved exactly)
 // =============================================
 export default function DashboardPage() {
   const { isLoaded, user } = useUser();
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch activities
-  const fetchActivities = async () => {
-    if (!user) return;
+  // Local UI states (unchanged)
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // SWR for profile and activities (auto revalidation)
+  const {
+    data: profile,
+    error: profileError,
+    mutate: mutateProfile,
+  } = useSWR<UserProfile>(user ? "/api/user/profile" : null, fetcher, {
+    revalidateOnFocus: true,
+    refreshInterval: 0, // we'll control polling manually to avoid double work
+  });
+
+  const {
+    data: activities,
+    error: activitiesError,
+    mutate: mutateActivities,
+  } = useSWR<Activity[]>(user ? "/api/activity" : null, fetcher, {
+    revalidateOnFocus: true,
+    refreshInterval: 0,
+  });
+
+  // Keep a ref to supabase client and subscription so we can cleanup
+  const supabaseRef = useRef<ReturnType<typeof getSupabaseClient> | null>(null);
+  const subscriptionRef = useRef<any>(null);
+  const pollingRef = useRef<number | null>(null);
+
+  // Helper to fetch and update both endpoints
+  const refreshAll = async () => {
     try {
-      setIsLoading(true);
-      const response = await fetch("/api/activity", {
-        cache: "no-store",
-        credentials: "include",
-      });
-      const data = await response.json();
-      setActivities(data);
-    } catch (error) {
-      console.error("Error fetching activities:", error);
+      setIsRefreshing(true);
+      await Promise.all([mutateProfile(), mutateActivities()]);
+      toast.success("Dashboard refreshed!");
+    } catch (err: any) {
+      console.error("Refresh failed:", err);
+      toast.error("Refresh failed");
     } finally {
-      setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    if (isLoaded) fetchActivities();
-  }, [user, isLoaded]);
+  // Manual handler for your existing button (keeps UI unchanged)
+  const handleRefresh = async () => {
+    await refreshAll();
+  };
 
+  // 1) Setup Supabase realtime listener (push)
+  useEffect(() => {
+    if (!user) return;
+
+    const supabase = getSupabaseClient();
+    supabaseRef.current = supabase;
+
+    if (!supabase) return;
+
+    // Listen to changes on 'users' table (for points) and 'Activity' table (for new activities)
+    const usersChannel = supabase
+      .channel(`public:users:user-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "User", filter: `id=eq.${user.id}` },
+        (payload) => {
+          // When users row changes, revalidate profile endpoint
+          // payload.new contains new row
+          // Use mutateProfile to update SWR cache instantly
+          if (payload?.new) {
+            // Replace SWR cache value immediately
+            mutateProfile(
+              (current) => {
+                if (!current) return payload.new as UserProfile;
+                return { ...current, points: (payload.new as any).points };
+              },
+              { revalidate: false }
+            );
+          } else {
+            // If delete or other event, revalidate
+            mutateProfile();
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "Activity", filter: `userId=eq.${user.id}` },
+        (payload) => {
+          // On activity changes, revalidate activities list and optionally profile
+          mutateActivities(); // re-fetch activities
+          // If this activity is 'Quiz Completed' and includes points info in details,
+          // revalidate profile to fetch updated points
+          mutateProfile();
+        }
+      )
+      .subscribe(async (status) => {
+        // status can be SUBSCRIBED | TIMED_OUT | etc.
+        // console.log("Supabase users channel status:", status);
+      });
+
+    subscriptionRef.current = usersChannel;
+
+    return () => {
+      // cleanup
+      try {
+        if (subscriptionRef.current && supabaseRef.current) {
+          supabaseRef.current.removeChannel(subscriptionRef.current);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, mutateProfile, mutateActivities]);
+
+  // 2) Polling fallback (B) — safe interval to ensure eventual consistency
+  useEffect(() => {
+    if (!user) return;
+
+    // Poll every 8 seconds (configurable)
+    const intervalMs = 8000;
+    pollingRef.current = window.setInterval(async () => {
+      try {
+        await Promise.all([mutateProfile(), mutateActivities()]);
+      } catch (e) {
+        // silently ignore
+      }
+    }, intervalMs);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, mutateProfile, mutateActivities]);
+
+  // 3) One-time initial load (while preserving your UI layout)
+  useEffect(() => {
+    if (!isLoaded || !user) return;
+    // On mount, ensure data is loaded
+    mutateProfile();
+    mutateActivities();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, user]);
+
+  // Chart data (unchanged semantics)
   const usageChartData = useMemo(() => {
-    const counts = { Air: 0, Water: 0, Land: 0 };
-    activities.forEach((act) => {
+    const counts = { Air: 0, Water: 0, Land: 0, Quiz: 0 };
+    (activities || []).forEach((act) => {
       if (act.type.includes("Air")) counts.Air++;
       if (act.type.includes("Water")) counts.Water++;
       if (
@@ -138,13 +292,18 @@ export default function DashboardPage() {
         act.type.includes("Deforestation")
       )
         counts.Land++;
+      if (act.type.includes("Quiz")) counts.Quiz++;
     });
     return [
       { name: "Air", analyses: counts.Air },
       { name: "Water", analyses: counts.Water },
       { name: "Land", analyses: counts.Land },
+      { name: "Quiz", analyses: counts.Quiz },
     ];
   }, [activities]);
+
+  // Loading display (keeps your original spinner behaviour)
+  const isLoading = !isLoaded || (!profile && !activities);
 
   if (!isLoaded || isLoading) {
     return (
@@ -154,6 +313,7 @@ export default function DashboardPage() {
     );
   }
 
+  // ====== THE ORIGINAL UI (kept intact, only data sources are now SWR-driven) ======
   return (
     <div className="bg-[#0D1117] min-h-screen text-white pt-24 pb-12">
       <main className="container mx-auto px-6">
@@ -190,10 +350,17 @@ export default function DashboardPage() {
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <LayoutDashboard /> Overview
               </h2>
+              {/* Grid 2x2 kar diya */}
               <div className="grid grid-cols-2 gap-4">
                 <StatCard
+                  title="Total Eco-Points"
+                  value={profile?.points || 0} // Data now comes from SWR (real-time)
+                  icon={Award}
+                  color="bg-yellow-500"
+                />
+                <StatCard
                   title="Total Analyses"
-                  value={activities.length}
+                  value={(activities || []).length}
                   icon={BrainCircuit}
                   color="bg-blue-500"
                 />
@@ -205,6 +372,7 @@ export default function DashboardPage() {
                 />
               </div>
             </div>
+
             <div className="bg-gray-900/70 backdrop-blur-sm p-6 rounded-2xl border border-white/10">
               <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
                 <Settings /> Quick Actions
@@ -258,59 +426,22 @@ export default function DashboardPage() {
                   margin={{ top: 5, right: 20, left: -10, bottom: 0 }}
                 >
                   <defs>
-                    <linearGradient
-                      id="colorAir"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="5%"
-                        stopColor="#60a5fa"
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor="#60a5fa"
-                        stopOpacity={0.1}
-                      />
+                    <linearGradient id="colorAir" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.1} />
                     </linearGradient>
-                    <linearGradient
-                      id="colorWater"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="5%"
-                        stopColor="#22d3ee"
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor="#22d3ee"
-                        stopOpacity={0.1}
-                      />
+                    <linearGradient id="colorWater" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0.1} />
                     </linearGradient>
-                    <linearGradient
-                      id="colorLand"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="5%"
-                        stopColor="#4ade80"
-                        stopOpacity={0.8}
-                      />
-                      <stop
-                        offset="95%"
-                        stopColor="#4ade80"
-                        stopOpacity={0.1}
-                      />
+                    <linearGradient id="colorLand" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4ade80" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#4ade80" stopOpacity={0.1} />
+                    </linearGradient>
+                    {/* Naya Gradient Quiz ke liye */}
+                    <linearGradient id="colorQuiz" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#facc15" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#facc15" stopOpacity={0.1} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
@@ -342,7 +473,7 @@ export default function DashboardPage() {
                       <Cell
                         key={`cell-${index}`}
                         fill={`url(#${
-                          ["colorAir", "colorWater", "colorLand"][index]
+                          ["colorAir", "colorWater", "colorLand", "colorQuiz"][index]
                         })`}
                       />
                     ))}
@@ -357,21 +488,23 @@ export default function DashboardPage() {
                   <History /> Recent Activity
                 </h2>
                 <button
-                  onClick={fetchActivities}
-                  className="flex items-center gap-2 text-sm bg-gray-800 px-3 py-1 rounded-md hover:bg-gray-700 transition"
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  className="flex items-center gap-2 text-sm bg-gray-800 px-3 py-1 rounded-md hover:bg-gray-700 transition disabled:opacity-50"
                 >
-                  <RefreshCw className="w-4 h-4" /> Refresh
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                  {isRefreshing ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
 
               <div className="max-h-60 overflow-y-auto pr-2">
-                {activities.length > 0 ? (
+                {(activities || []).length > 0 ? (
                   <div className="relative">
-                    {activities.map((act, index) => (
+                    {(activities || []).map((act, index) => (
                       <TimelineItem
                         key={act.id}
                         activity={act}
-                        isLast={index === activities.length - 1}
+                        isLast={index === activities!.length - 1}
                       />
                     ))}
                   </div>
