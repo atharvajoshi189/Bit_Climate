@@ -6,36 +6,49 @@ from google.auth import exceptions as google_auth_exceptions # To catch credenti
 from datetime import datetime, timedelta
 
 # --- CORRECTED CONDITIONAL EARTH ENGINE INITIALIZATION ---
+# --- FINAL CORRECTED CONDITIONAL EARTH ENGINE INITIALIZATION ---
 try:
-    # Check if the credentials environment variable is set (typical for servers like Render)
-    if os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
-        print("Found GOOGLE_APPLICATION_CREDENTIALS. Initializing Earth Engine with service account...")
-        # Use service account credentials on server
-        ee.Initialize(credentials='GOOGLE_APPLICATION_CREDENTIALS', project='psychic-rush-470109-r9')
+    GCP_PROJECT_ID = 'psychic-rush-470109-r9' # Store your Project ID
+    CREDENTIALS_PATH_ENV_VAR = 'GOOGLE_APPLICATION_CREDENTIALS'
+
+    # Check if running on server (Render)
+    if os.getenv(CREDENTIALS_PATH_ENV_VAR):
+        print(f"Found {CREDENTIALS_PATH_ENV_VAR}. Initializing Earth Engine with service account...")
+        credentials_path = os.getenv(CREDENTIALS_PATH_ENV_VAR)
+
+        # Check if the credentials file actually exists at the path
+        if not os.path.exists(credentials_path):
+            raise FileNotFoundError(f"Service account key file not found at: {credentials_path}")
+
+        print(f"Loading credentials from: {credentials_path}")
+        # Load credentials manually from the JSON file
+        credentials = service_account.Credentials.from_service_account_file(
+            credentials_path, 
+            scopes=['https://www.googleapis.com/auth/earthengine.readonly'] # Add necessary scopes
+        )
+
+        print("Credentials loaded. Initializing Earth Engine...")
+        # Initialize with the credential OBJECT and project ID
+        ee.Initialize(credentials=credentials, project=GCP_PROJECT_ID) 
         print("Earth Engine Initialized Successfully (Server Mode).")
+
     else:
-        # If the environment variable is NOT set, assume local development
-        # Try initializing directly first (might work if gcloud auth application-default login was used)
-        print("GOOGLE_APPLICATION_CREDENTIALS not found. Attempting default initialization (Local Mode)...")
+        # Assume local development
+        print(f"{CREDENTIALS_PATH_ENV_VAR} not found. Attempting default initialization (Local Mode)...")
         try:
-            ee.Initialize(project='psychic-rush-470109-r9')
+            # Try initializing directly (uses gcloud default login or local service account file if GOOGLE_APPLICATION_CREDENTIALS is set locally outside Render)
+            # Pass project ID here too for consistency
+            ee.Initialize(project=GCP_PROJECT_ID) 
             print("Earth Engine Initialized Successfully (Local Mode - Default Credentials).")
         except (ee.EEException, google_auth_exceptions.DefaultCredentialsError) as e:
-            # If default/direct init fails, fall back to interactive Authenticate
             print(f"Default initialization failed ({type(e).__name__}). Falling back to ee.Authenticate() for interactive login...")
-            ee.Authenticate() # This will prompt for login locally via gcloud
-            ee.Initialize()   # Initialize after authentication
+            ee.Authenticate(project_id=GCP_PROJECT_ID) # Pass project ID to Authenticate as well
+            ee.Initialize(project=GCP_PROJECT_ID)   # Initialize after authentication
             print("Earth Engine Initialized Successfully (Local Mode - Authenticate Flow).")
 
 except Exception as final_e:
-    # Catch any unexpected error during the entire process
     print(f"CRITICAL ERROR: Failed to initialize Earth Engine: {final_e}")
-    # Depending on your app's needs, you might want to raise the error
-    # or handle it gracefully if EE is optional for some functions.
     raise final_e
-# --- END CORRECTED CONDITIONAL INITIALIZATION ---
-
-
 # --- YOUR EXISTING analyze_area FUNCTION ---
 def analyze_area(geojson, start_date_str, end_date_str):
     """
