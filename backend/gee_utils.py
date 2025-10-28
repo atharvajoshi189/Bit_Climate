@@ -1,61 +1,95 @@
 # backend/gee_utils.py
 
 import ee
-import os # Import os to check environment variables
-from google.auth import exceptions as google_auth_exceptions # To catch credential errors specifically
+import os
+import sys # For better error output
+from google.oauth2 import service_account
+from google.auth import exceptions as google_auth_exceptions
 from datetime import datetime, timedelta
 
-# --- CORRECTED CONDITIONAL EARTH ENGINE INITIALIZATION ---
-# --- FINAL CORRECTED CONDITIONAL EARTH ENGINE INITIALIZATION ---
+# --- Earth Engine Initialization (Robust Version) ---
 try:
-    GCP_PROJECT_ID = 'psychic-rush-470109-r9' # Store your Project ID
-    CREDENTIALS_PATH_ENV_VAR = 'GOOGLE_APPLICATION_CREDENTIALS'
+    GCP_PROJECT_ID = 'psychic-rush-470109-r9' # Your Google Cloud Project ID
+    CREDENTIALS_ENV_VAR = 'GOOGLE_APPLICATION_CREDENTIALS' # Env var Render sets
+    
+    credentials_path_on_server = os.getenv(CREDENTIALS_ENV_VAR)
 
-    # Check if running on server (Render)
-    if os.getenv(CREDENTIALS_PATH_ENV_VAR):
-        print(f"Found {CREDENTIALS_PATH_ENV_VAR}. Initializing Earth Engine with service account...")
-        credentials_path = os.getenv(CREDENTIALS_PATH_ENV_VAR)
+    # --- Server/Render Path ---
+    if credentials_path_on_server:
+        print(f"INFO: Found {CREDENTIALS_ENV_VAR}. Initializing Earth Engine in Server Mode.")
+        print(f"DEBUG: Credentials path from env var: '{credentials_path_on_server}'")
 
-        # Check if the credentials file actually exists at the path
-        if not os.path.exists(credentials_path):
-            raise FileNotFoundError(f"Service account key file not found at: {credentials_path}")
+        if not os.path.exists(credentials_path_on_server):
+            print(f"ERROR: Service account key file NOT found at the specified path: '{credentials_path_on_server}'")
+            # Attempt to list directory for debugging (might fail due to permissions)
+            try:
+                secrets_dir = os.path.dirname(credentials_path_on_server)
+                print(f"DEBUG: Listing contents of directory '{secrets_dir}': {os.listdir(secrets_dir)}")
+            except Exception as list_e:
+                print(f"DEBUG: Could not list contents of '{secrets_dir}': {list_e}")
+            raise FileNotFoundError(f"Service account key file not found at: {credentials_path_on_server}")
 
-        print(f"Loading credentials from: {credentials_path}")
-        # Load credentials manually from the JSON file
-        credentials = service_account.Credentials.from_service_account_file(
-            credentials_path, 
-            scopes=['https://www.googleapis.com/auth/earthengine.readonly'] # Add necessary scopes
-        )
-
-        print("Credentials loaded. Initializing Earth Engine...")
-        # Initialize with the credential OBJECT and project ID
-        ee.Initialize(credentials=credentials, project=GCP_PROJECT_ID) 
-        print("Earth Engine Initialized Successfully (Server Mode).")
-
-    else:
-        # Assume local development
-        print(f"{CREDENTIALS_PATH_ENV_VAR} not found. Attempting default initialization (Local Mode)...")
         try:
-            # Try initializing directly (uses gcloud default login or local service account file if GOOGLE_APPLICATION_CREDENTIALS is set locally outside Render)
-            # Pass project ID here too for consistency
-            ee.Initialize(project=GCP_PROJECT_ID) 
-            print("Earth Engine Initialized Successfully (Local Mode - Default Credentials).")
-        except (ee.EEException, google_auth_exceptions.DefaultCredentialsError) as e:
-            print(f"Default initialization failed ({type(e).__name__}). Falling back to ee.Authenticate() for interactive login...")
-            ee.Authenticate(project_id=GCP_PROJECT_ID) # Pass project ID to Authenticate as well
-            ee.Initialize(project=GCP_PROJECT_ID)   # Initialize after authentication
-            print("Earth Engine Initialized Successfully (Local Mode - Authenticate Flow).")
+            print(f"INFO: Loading credentials from: {credentials_path_on_server}")
+            # Explicitly load credentials using google-auth library
+            credentials = service_account.Credentials.from_service_account_file(
+                credentials_path_on_server,
+                # Define necessary scopes for your EE operations
+                scopes=[
+                    'https://www.googleapis.com/auth/earthengine',
+                    'https://www.googleapis.com/auth/cloud-platform'
+                ]
+            )
+            print("INFO: Credentials loaded successfully.")
+
+            print("INFO: Initializing Earth Engine with loaded credentials and project ID...")
+            # Initialize using the loaded credential OBJECT and project ID
+            # opt_url might be needed for high volume requests with service accounts
+            ee.Initialize(credentials=credentials, project=GCP_PROJECT_ID, opt_url='https://earthengine-highvolume.googleapis.com')
+            print("INFO: Earth Engine Initialized Successfully (Server Mode).")
+
+        except Exception as init_e:
+            print(f"ERROR: Failed to initialize Earth Engine using service account credentials: {init_e}", file=sys.stderr)
+            raise init_e # Re-raise the exception after logging
+
+    # --- Local Development Path ---
+    else:
+        print(f"INFO: {CREDENTIALS_ENV_VAR} not found. Attempting initialization in Local Mode.")
+        try:
+            # First, try initializing directly. Works if gcloud default login is set.
+            print("INFO: Attempting ee.Initialize() with project ID...")
+            ee.Initialize(project=GCP_PROJECT_ID)
+            print("INFO: Earth Engine Initialized Successfully (Local Mode - Default Credentials).")
+        except (ee.EEException, google_auth_exceptions.DefaultCredentialsError, Exception) as e1:
+            # Catch a broader range of potential default init errors
+            print(f"WARN: Default initialization failed ({type(e1).__name__}: {e1}). Falling back to ee.Authenticate() flow.")
+            try:
+                # If default fails, try the interactive authentication flow
+                print("INFO: Attempting ee.Authenticate()...")
+                ee.Authenticate(project_id=GCP_PROJECT_ID) # Authenticate first
+                print("INFO: ee.Authenticate() completed. Attempting ee.Initialize() again...")
+                ee.Initialize(project=GCP_PROJECT_ID) # Initialize after authentication
+                print("INFO: Earth Engine Initialized Successfully (Local Mode - Authenticate Flow).")
+            except Exception as e2:
+                print(f"ERROR: Interactive authentication/initialization also failed: {e2}", file=sys.stderr)
+                raise e2 # Re-raise the exception after logging
 
 except Exception as final_e:
-    print(f"CRITICAL ERROR: Failed to initialize Earth Engine: {final_e}")
+    # Catch any unexpected error during the entire process
+    print(f"CRITICAL ERROR: Failed during Earth Engine setup phase: {final_e}", file=sys.stderr)
+    # Raising here might stop the server from starting if EE is critical
     raise final_e
+# --- END Earth Engine Initialization ---
+
+
 # --- YOUR EXISTING analyze_area FUNCTION ---
+# (Ensure this function definition is AFTER the initialization block)
 def analyze_area(geojson, start_date_str, end_date_str):
     """
     Analyzes deforestation in a given GeoJSON area between two dates.
     Returns start map URL, end map URL with overlay, and statistics.
     """
-    print(f"Analyzing area for dates: {start_date_str} to {end_date_str}")
+    print(f"INFO: Analyzing area for dates: {start_date_str} to {end_date_str}")
     try:
         region = ee.Geometry(geojson) # Convert GeoJSON dict/string to ee.Geometry
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d')
@@ -95,7 +129,7 @@ def analyze_area(geojson, start_date_str, end_date_str):
         # Check if collections are empty after filtering
         start_size = start_collection.size().getInfo()
         end_size = end_collection.size().getInfo()
-        print(f"Found {start_size} images for start period, {end_size} images for end period.")
+        print(f"DEBUG: Found {start_size} images for start period, {end_size} images for end period.")
         if start_size == 0 or end_size == 0:
             raise ValueError("No cloud-free satellite imagery found for the selected date range(s). Please try different dates or a larger area.")
 
@@ -129,8 +163,8 @@ def analyze_area(geojson, start_date_str, end_date_str):
             scale=30, # Landsat scale
             maxPixels=1e9
         )
-        # Convert sq meters to hectares, getInfo() retrieves the value, round it
-        deforested_hectares = round(ee.Number(deforested_stats.get('NDVI')).divide(10000).getInfo(), 2)
+        # Convert sq meters to hectares, use .get(key, 0) for safety, round
+        deforested_hectares = round(ee.Number(deforested_stats.get('NDVI', 0)).divide(10000).getInfo(), 2)
 
         # Calculate initial forest area
         initial_forest_area_image = initial_forest.updateMask(initial_forest).multiply(pixel_area) # Mask to count only forest pixels
@@ -140,12 +174,13 @@ def analyze_area(geojson, start_date_str, end_date_str):
             scale=30,
             maxPixels=1e9
         )
-        initial_forest_hectares = round(ee.Number(initial_stats.get('NDVI')).divide(10000).getInfo(), 2)
+        initial_forest_hectares = round(ee.Number(initial_stats.get('NDVI', 0)).divide(10000).getInfo(), 2)
 
-        # Calculate percentage loss
+        # Calculate percentage loss, ensure initial_forest_hectares is not None or 0
         percentage_loss = 0
-        if initial_forest_hectares > 0: # Avoid division by zero
-            percentage_loss = round((deforested_hectares / initial_forest_hectares) * 100, 2)
+        if initial_forest_hectares is not None and initial_forest_hectares > 0:
+             deforested_hectares_safe = deforested_hectares if deforested_hectares is not None else 0
+             percentage_loss = round((deforested_hectares_safe / initial_forest_hectares) * 100, 2)
         # --- End Area Calculation ---
 
         # --- Generate Thumbnail URLs ---
@@ -163,25 +198,32 @@ def analyze_area(geojson, start_date_str, end_date_str):
         # Create the 'after' image with deforestation overlay blended on top
         after_image_visualized = end_image.visualize(**true_color_vis)
         deforestation_mask_visualized = deforestation.visualize(**deforestation_vis)
-        # Blend the deforestation mask onto the 'after' image
         end_map_with_overlay_image = ee.Image().blend(after_image_visualized).blend(deforestation_mask_visualized)
         end_map_with_overlay_url = end_map_with_overlay_image.getThumbURL(thumb_params)
         # --- End Thumbnail Generation ---
 
-        # Structure the final statistics result
+        # Structure the final statistics result, handle potential None values
         final_stats = {
-            "Initial Forest Area (ha)": initial_forest_hectares if initial_forest_hectares is not None else 0, # Handle potential None
-            "Deforested Area (ha)": deforested_hectares if deforested_hectares is not None else 0, # Handle potential None
-            "Percentage Loss (%)": percentage_loss if percentage_loss is not None else 0 # Handle potential None
+            "Initial Forest Area (ha)": initial_forest_hectares if initial_forest_hectares is not None else 0,
+            "Deforested Area (ha)": deforested_hectares if deforested_hectares is not None else 0,
+            "Percentage Loss (%)": percentage_loss if percentage_loss is not None else 0
         }
-        print("Analysis Stats:", final_stats) # Log the calculated stats
+        print("INFO: Analysis Stats:", final_stats) # Log the calculated stats
 
         return start_map_url, end_map_with_overlay_url, final_stats
 
-    except Exception as e:
-        print(f"Error during Earth Engine analysis in analyze_area: {e}")
-        # Re-raise or return an error structure suitable for your FastAPI response
-        # It's often better to raise a specific error type if possible
-        raise ValueError(f"Earth Engine analysis failed: {e}")
+    except ee.EEException as e: # Catch EE specific errors first
+        error_message = f"Earth Engine specific error during analysis: {e}"
+        print(f"ERROR: {error_message}", file=sys.stderr)
+        # Provide a more user-friendly message if possible
+        raise ValueError("Earth Engine analysis failed. This might be due to the selected area size, date range, or temporary EE issues. Please try again or adjust parameters.")
+    except ValueError as e: # Catch specific ValueErrors (like bad dates or no imagery)
+        error_message = f"Value error during analysis: {e}"
+        print(f"WARN: {error_message}", file=sys.stderr)
+        raise e # Re-raise the specific ValueError
+    except Exception as e: # Catch any other unexpected errors
+        error_message = f"Unexpected error during Earth Engine analysis: {e}"
+        print(f"ERROR: {error_message}", file=sys.stderr)
+        raise ValueError(f"Analysis failed unexpectedly: {e}") # Raise a standard error type
 
 # --- Add any other utility functions you have in this file ---
