@@ -13,3 +13,4 @@ pandas
 joblib
 groq
 google-auth
+pandas
