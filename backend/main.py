@@ -21,7 +21,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 # --- Project-Specific Imports (Absolute Paths) ---
-from backend.gee_utils import analyze_area
+#from backend.gee_utils import analyze_area
 from backend.pdf_report import create_pdf_report
 from backend.crop_disease.predictor import predict_disease
 from backend.irrigation_ai import get_smart_recommendation as get_irrigation_recommendation
