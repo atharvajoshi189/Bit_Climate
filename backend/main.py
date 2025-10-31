@@ -21,8 +21,8 @@ from datetime import datetime
 from pydantic import BaseModel
 
 # --- Project-Specific Imports (Absolute Paths) ---
-#from backend.gee_utils import analyze_area
-#from backend.pdf_report import create_pdf_report
+from backend.gee_utils import analyze_area
+from backend.pdf_report import create_pdf_report
 from backend.crop_disease.predictor import predict_disease
 from backend.irrigation_ai import get_smart_recommendation as get_irrigation_recommendation
 from backend.risk_analyzer import get_risk_prediction_by_city
@@ -363,23 +363,23 @@ async def get_smart_recommendation_endpoint(req: IrrigationRequest):
 
 
 
-# --- Deforestation Endpoints ---
-# @app.post("/analyze_area")
-# async def analyze_area_endpoint(geojson: str = Form(...), start_date: str = Form(...), end_date: str = Form(...)):
-#     try:
-#         geojson_dict = json.loads(geojson)
-#         start_map, end_map_overlay, stats = analyze_area(geojson_dict, start_date, end_date)
-#         return JSONResponse({"start_map": start_map, "end_map_overlay": end_map_overlay, "stats": stats})
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=str(e))
+#- Deforestation Endpoints ---
+@app.post("/analyze_area")
+async def analyze_area_endpoint(geojson: str = Form(...), start_date: str = Form(...), end_date: str = Form(...)):
+    try:
+        geojson_dict = json.loads(geojson)
+        start_map, end_map_overlay, stats = analyze_area(geojson_dict, start_date, end_date)
+        return JSONResponse({"start_map": start_map, "end_map_overlay": end_map_overlay, "stats": stats})
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-# @app.post("/generate_report")
-# async def generate_report(stats: str = Form(...), start_map: str = Form(...), end_map: str = Form(...), start_date: str = Form(...), end_date: str = Form(...)):
-#     try:
-#         pdf_path = create_pdf_report(stats=stats, start_map=start_map, end_map=end_map, start_date=start_date, end_date=end_date)
-#         return FileResponse(pdf_path, filename="deforestation_report.pdf", media_type="application/pdf")
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
+@app.post("/generate_report")
+async def generate_report(stats: str = Form(...), start_map: str = Form(...), end_map: str = Form(...), start_date: str = Form(...), end_date: str = Form(...)):
+    try:
+        pdf_path = create_pdf_report(stats=stats, start_map=start_map, end_map=end_map, start_date=start_date, end_date=end_date)
+        return FileResponse(pdf_path, filename="deforestation_report.pdf", media_type="application/pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- Crop Disease Endpoint ---
 @app.post("/predict_crop_disease")
